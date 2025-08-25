@@ -9,7 +9,7 @@ const { v2: cloudinary } = pkg;
 
 // AI/Parsing Helpers
 import { extractTextFromPDF, extractTextFromDocx } from "../utils/fileParser.js";
-import { analyzeResumeGemini } from "../ai/geminiClient.js";
+import { analyzeResumeMistral } from "../ai/openrouterClient.js";
 import { downloadFileBuffer } from "../utils/fileDownloader.js"; // function you create like above
 
 // Get all active jobs (public)
@@ -264,14 +264,23 @@ export const parseResumeFromCloudinary = async (req, res) => {
         }
 
         const jobGoal = req.body.jobGoal || "";
-        const aiOutput = await analyzeResumeGemini(text, jobGoal);
+        const aiOutput = await analyzeResumeMistral(text, jobGoal);
 
-        // Parse AI output string JSON
+        // Parse AI output string JSON (strip markdown/code if needed)
         let parsedOutput;
         try {
-            parsedOutput = JSON.parse(aiOutput);
-        } catch {
-            parsedOutput = aiOutput;
+            // Remove triple backticks and any leading "json\n"
+            let cleaned = aiOutput
+                .trim()
+                .replace(/^```json\s*/i, "")
+                .replace(/^```/, "")
+                .replace(/```$/i, "")
+                .trim();
+
+            parsedOutput = JSON.parse(cleaned);
+        } catch (err) {
+            console.error("AI output could not be parsed as JSON:", aiOutput);
+            parsedOutput = { raw: aiOutput };
         }
 
         return res.json({ ai_output: parsedOutput });

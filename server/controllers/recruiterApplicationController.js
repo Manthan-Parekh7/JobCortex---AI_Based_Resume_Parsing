@@ -1,6 +1,9 @@
 import Application from "../models/Application.js";
 import Job from "../models/Job.js";
 import logger from "../config/logger.js";
+import { analyzeResumeMistral, analyzeCandidateJobFit } from "../ai/openrouterClient.js";
+import { downloadFileBuffer } from "../utils/fileDownloader.js";
+import { extractTextFromPDF, extractTextFromDocx } from "../utils/fileparser.js";
 
 // View applications for a specific job
 export const getApplicationsForJob = async (req, res) => {
@@ -51,5 +54,74 @@ export const updateApplicationStatus = async (req, res) => {
     } catch (err) {
         logger.error("Update application status error:", err);
         return res.status(500).json({ error: "Failed to update application status" });
+    }
+};
+
+export const getAIShortlistedApplications = async (req, res) => {
+    try {
+        // Find the job posted by this recruiter
+        const job = await Job.findOne({ _id: req.params.jobId, recruiter: req.user._id });
+        if (!job) {
+            return res.status(404).json({ error: "Job not found or not yours" });
+        }
+
+        // Get applications with populated candidate fields
+        const applications = await Application.find({ job: req.params.jobId }).populate("candidate", "username email resume summary");
+
+        const enhancedApplications = await Promise.all(
+            applications.map(async (app) => {
+                const candidate = app.candidate;
+                let summary = candidate.summary;
+
+                try {
+                    // If candidate summary is missing, generate it from resume file
+                    if (!summary) {
+                        const fileBuffer = await downloadFileBuffer(candidate.resume);
+
+                        let text;
+                        if (candidate.resume.endsWith(".pdf")) {
+                            text = await extractTextFromPDF(fileBuffer);
+                        } else if (candidate.resume.endsWith(".docx")) {
+                            text = await extractTextFromDocx(fileBuffer);
+                        } else {
+                            text = ""; // Unsupported format: skip summary generation
+                        }
+
+                        const aiSummaryRaw = await analyzeResumeMistral(text, "");
+
+                        // Clean AI output for markdown backticks and whitespace
+                        let cleanedSummary = aiSummaryRaw.trim().replace(/^```/, "").replace(/```$/, "").trim();
+
+                        // Parse the cleaned summary JSON
+                        const parsedSummary = JSON.parse(cleanedSummary);
+                        summary = parsedSummary.summary || "";
+
+                        // Efficiently update only the summary field in Candidate document using $set
+                        await Candidate.findByIdAndUpdate(candidate._id, { $set: { summary } }, { new: true });
+                    }
+
+                    // Use the summary to get fit score and explanation
+                    const fitData = await analyzeCandidateJobFit(job.description, summary);
+
+                    return {
+                        ...app.toObject(),
+                        fit_score: fitData.fit_score ?? null,
+                        fit_explanation: fitData.explanation ?? "",
+                        summary,
+                    };
+                } catch (error) {
+                    console.error("AI scoring failed for app", app._id, error);
+                    return app.toObject(); // fallback on failure
+                }
+            })
+        );
+
+        // Sort applications by fit score descending (highest fit first)
+        enhancedApplications.sort((a, b) => (b.fit_score || 0) - (a.fit_score || 0));
+
+        return res.json(enhancedApplications);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ error: "Failed to fetch AI shortlisted applications" });
     }
 };

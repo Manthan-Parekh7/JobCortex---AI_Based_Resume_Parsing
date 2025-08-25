@@ -9,4 +9,6 @@ const router = express.Router();
 router.get("/:jobId", isAuthenticated, isVerified, isRecruiter, recruiterAppController.getApplicationsForJob);
 router.patch("/:appId/:status", isAuthenticated, isVerified, isRecruiter, recruiterAppController.updateApplicationStatus);
 
+router.get("/:jobId/ai-shortlisted", isAuthenticated, isVerified, isRecruiter, recruiterAppController.getAIShortlistedApplications);
+
 export default router;
