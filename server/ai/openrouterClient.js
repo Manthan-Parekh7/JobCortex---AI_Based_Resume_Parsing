@@ -5,7 +5,7 @@ dotenv.config();
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-export async function analyzeResumeMistral(resumeText, jobGoal) {
+export async function analyzeResumeGemini(resumeText, jobGoal) {
     const prompt = `
 Resume Text:
 ${resumeText}
@@ -48,9 +48,9 @@ Format the result strictly as valid JSON:
         const response = await axios.post(
             OPENROUTER_ENDPOINT,
             {
-                model: "mistralai/mistral-small-3.2-24b-instruct",
+                model: "google/gemini-2.5-flash-image-preview:free",
                 messages: [
-                    { role: "system", content: "You are an expert resume parser." },
+                    { role: "system", content: "You are an expert resume parser and ats score predictor." },
                     { role: "user", content: prompt },
                 ],
                 temperature: 0.2,

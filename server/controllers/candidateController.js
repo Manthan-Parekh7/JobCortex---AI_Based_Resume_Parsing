@@ -8,9 +8,8 @@ import pkg from "cloudinary";
 const { v2: cloudinary } = pkg;
 
 // AI/Parsing Helpers
-import { extractTextFromPDF, extractTextFromDocx } from "../utils/fileParser.js";
-import { analyzeResumeMistral } from "../ai/openrouterClient.js";
-import { downloadFileBuffer } from "../utils/fileDownloader.js"; // function you create like above
+import { getOrParseResumeText } from "../utils/getOrParseResumeText.js";
+import { analyzeResumeGemini } from "../ai/openrouterClient.js";
 
 // Get all active jobs (public)
 export const listJobs = async (req, res) => {
@@ -244,37 +243,21 @@ export const deleteResume = async (req, res) => {
 // --------- AI Resume Parsing Endpoint ---------
 export const parseResumeFromCloudinary = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id);
-        if (!user.resume) return res.status(400).json({ error: "No resume uploaded" });
-
-        // Download file buffer from Cloudinary URL
-        const fileBuffer = await downloadFileBuffer(user.resume);
-
-        // Detect mimetype from URL extension (simplified)
-        const isPdf = user.resume.endsWith(".pdf");
-        const isDocx = user.resume.endsWith(".docx");
-
-        let text;
-        if (isPdf) {
-            text = await extractTextFromPDF(fileBuffer);
-        } else if (isDocx) {
-            text = await extractTextFromDocx(fileBuffer);
-        } else {
-            return res.status(400).json({ error: "Unsupported resume file format" });
-        }
+        // Get cached or parsed resume text
+        const resumeText = await getOrParseResumeText(req.user._id);
 
         const jobGoal = req.body.jobGoal || "";
-        const aiOutput = await analyzeResumeMistral(text, jobGoal);
+
+        // Analyze resume with AI using cached plain text
+        const aiOutput = await analyzeResumeGemini(resumeText, jobGoal);
 
         // Parse AI output string JSON (strip markdown/code if needed)
         let parsedOutput;
         try {
-            // Remove triple backticks and any leading "json\n"
             let cleaned = aiOutput
                 .trim()
-                .replace(/^```json\s*/i, "")
-                .replace(/^```/, "")
-                .replace(/```$/i, "")
+                .replace(/^```[\w]*\n/, "")
+                .replace(/```$/, "")
                 .trim();
 
             parsedOutput = JSON.parse(cleaned);

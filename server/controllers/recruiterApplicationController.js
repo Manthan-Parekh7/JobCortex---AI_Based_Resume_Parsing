@@ -1,9 +1,9 @@
 import Application from "../models/Application.js";
 import Job from "../models/Job.js";
 import logger from "../config/logger.js";
-import { analyzeResumeMistral, analyzeCandidateJobFit } from "../ai/openrouterClient.js";
+import { analyzeResumeGemini, analyzeCandidateJobFit } from "../ai/openrouterClient.js";
 import { downloadFileBuffer } from "../utils/fileDownloader.js";
-import { extractTextFromPDF, extractTextFromDocx } from "../utils/fileparser.js";
+import { extractTextFromPDF, extractTextFromDocx } from "../utils/fileParser.js";
 
 // View applications for a specific job
 export const getApplicationsForJob = async (req, res) => {

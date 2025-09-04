@@ -13,9 +13,10 @@ const userSchema = new mongoose.Schema(
         googleId: { type: String },
         githubId: { type: String },
         image: { type: String }, // profile picture
-        resume: { type: String }, // for candidates
-        resumePublicId: { type: String },
-        // NEW fields
+        resume: { type: String }, // for candidates and to see the preview of the resume
+        resumePublicId: { type: String }, // For deleting purpose
+        resumeText: String, // Parsed, plain text (to be cached) (for future ai use case)
+
         role: {
             type: String,
             enum: ["candidate", "recruiter", "admin"],
