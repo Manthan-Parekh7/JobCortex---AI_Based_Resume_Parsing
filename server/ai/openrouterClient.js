@@ -48,7 +48,7 @@ Format the result strictly as valid JSON:
         const response = await axios.post(
             OPENROUTER_ENDPOINT,
             {
-                model: "google/gemini-2.5-flash-image-preview:free",
+                model: "mistralai/mistral-small-3.2-24b-instruct:free",
                 messages: [
                     { role: "system", content: "You are an expert resume parser and ats score predictor." },
                     { role: "user", content: prompt },
