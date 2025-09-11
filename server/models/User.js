@@ -27,6 +27,7 @@ const userSchema = new mongoose.Schema(
 
         isVerified: { type: Boolean, default: false },
         refreshToken: { type: String, default: null },
+        summary: { type: String }, // Cached candidate summary as used by AI
 
         otp: { type: String },
         otpExpires: { type: Date },

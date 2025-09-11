@@ -5,7 +5,7 @@ dotenv.config();
 const OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-export async function analyzeResumeGemini(resumeText, jobGoal) {
+export async function analyzeResumeMistral(resumeText, jobGoal) {
     const prompt = `
 Resume Text:
 ${resumeText}

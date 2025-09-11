@@ -9,7 +9,7 @@ const { v2: cloudinary } = pkg;
 
 // AI/Parsing Helpers
 import { getOrParseResumeText } from "../utils/getOrParseResumeText.js";
-import { analyzeResumeGemini } from "../ai/openrouterClient.js";
+import { analyzeResumeMistral } from "../ai/openrouterClient.js";
 
 // Get all active jobs (public)
 export const listJobs = async (req, res) => {
@@ -209,7 +209,6 @@ export const getResume = async (req, res) => {
     }
 };
 
-// Delete resume (including removing from Cloudinary) for logged-in candidate
 export const deleteResume = async (req, res) => {
     try {
         const user = await User.findById(req.user._id);
@@ -230,6 +229,8 @@ export const deleteResume = async (req, res) => {
         // Remove from the user document
         user.resume = undefined;
         user.resumePublicId = undefined;
+        user.resumeText = undefined;
+        user.summary = undefined; // delete cached AI summary
         await user.save();
 
         logger.info(`Resume deleted for user ${req.user.email}`);
@@ -249,7 +250,7 @@ export const parseResumeFromCloudinary = async (req, res) => {
         const jobGoal = req.body.jobGoal || "";
 
         // Analyze resume with AI using cached plain text
-        const aiOutput = await analyzeResumeGemini(resumeText, jobGoal);
+        const aiOutput = await analyzeResumeMistral(resumeText, jobGoal);
 
         // Parse AI output string JSON (strip markdown/code if needed)
         let parsedOutput;
@@ -261,6 +262,8 @@ export const parseResumeFromCloudinary = async (req, res) => {
                 .trim();
 
             parsedOutput = JSON.parse(cleaned);
+            const summary = parsedOutput.summary || "";
+            await User.findByIdAndUpdate(req.user._id, { $set: { summary } });
         } catch (err) {
             console.error("AI output could not be parsed as JSON:", aiOutput);
             parsedOutput = { raw: aiOutput };
