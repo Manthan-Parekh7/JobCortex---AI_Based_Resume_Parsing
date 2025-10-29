@@ -27,6 +27,12 @@ export const addNewCompany = async (companyData) => {
     return response.data; // { success, message, company }
 };
 
+// Create or update company profile (upsert)
+export const createOrUpdateCompanyProfile = async (companyData) => {
+    const response = await api.post("/company/profile", companyData);
+    return response.data; // { success, message, company }
+};
+
 export const getMyCompany = async () => {
     const response = await api.get("/company/me");
     return response.data.company; // return the company object directly
@@ -43,7 +49,14 @@ export const getApplicationsForJob = async (jobId) => {
     return response.data; // Return full response data including applications array
 };
 
-export const updateApplicationStatus = async (appId, status) => {
+export const updateApplicationStatus = async (appId, status, details = null) => {
+    const requestBody = details ? details : {};
+    const response = await api.put(`/recruiter/applications/${appId}/${status}`, requestBody);
+    return response.data;
+};
+
+// Simple status update without details (for backward compatibility)
+export const updateApplicationStatusSimple = async (appId, status) => {
     const response = await api.patch(`/recruiter/applications/${appId}/${status}`);
     return response.data;
 };

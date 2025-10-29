@@ -30,6 +30,7 @@ import { Separator } from '../../components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../../components/ui/dialog';
 import { MarkdownViewer } from '../../components/ui/markdown-editor';
 import { ScrollArea } from '../../components/ui/scroll-area';
+import ApplicationStatusDialog from '../../components/ApplicationStatusDialog';
 import { toast } from 'sonner';
 import { BarLoader } from 'react-spinners';
 import { getApplicationsForJob, updateApplicationStatus } from '../../api/recruiterApi';
@@ -83,6 +84,15 @@ const RecruiterApplications = () => {
     const [applications, setApplications] = useState([]);
     const [job, setJob] = useState(null);
 
+    // State for the application status dialog
+    const [statusDialog, setStatusDialog] = useState({
+        isOpen: false,
+        applicationId: null,
+        status: null,
+        candidateName: '',
+        loading: false
+    });
+
     useEffect(() => {
         if (jobId) {
             fetchApplications(jobId);
@@ -96,7 +106,23 @@ const RecruiterApplications = () => {
         }
     }, [applicationsData]);
 
-    const handleStatusUpdate = async (applicationId, newStatus) => {
+    const handleStatusUpdate = (applicationId, newStatus, candidateName) => {
+        if (newStatus === 'pending') {
+            // For pending status, update directly without dialog
+            updateStatusDirectly(applicationId, newStatus);
+        } else {
+            // For accept/reject, show dialog for additional details
+            setStatusDialog({
+                isOpen: true,
+                applicationId,
+                status: newStatus,
+                candidateName,
+                loading: false
+            });
+        }
+    };
+
+    const updateStatusDirectly = async (applicationId, newStatus) => {
         try {
             await updateApplicationStatus(applicationId, newStatus);
             setApplications(apps =>
@@ -109,6 +135,35 @@ const RecruiterApplications = () => {
             toast.success(`Application ${newStatus} successfully`);
         } catch {
             toast.error('Failed to update application status');
+        }
+    };
+
+    const handleStatusDialogConfirm = async (details) => {
+        const { applicationId, status } = statusDialog;
+
+        setStatusDialog(prev => ({ ...prev, loading: true }));
+
+        try {
+            await updateApplicationStatus(applicationId, status, details);
+            setApplications(apps =>
+                apps.map(app =>
+                    app._id === applicationId
+                        ? { ...app, status }
+                        : app
+                )
+            );
+
+            toast.success(`Application ${status} successfully. Candidate will be notified via email in 30 seconds.`);
+            setStatusDialog({ isOpen: false, applicationId: null, status: null, candidateName: '', loading: false });
+        } catch {
+            toast.error('Failed to update application status');
+            setStatusDialog(prev => ({ ...prev, loading: false }));
+        }
+    };
+
+    const handleStatusDialogClose = () => {
+        if (!statusDialog.loading) {
+            setStatusDialog({ isOpen: false, applicationId: null, status: null, candidateName: '', loading: false });
         }
     };
 
@@ -260,7 +315,7 @@ const RecruiterApplications = () => {
                         {/* Actions */}
                         <div className="flex gap-2 pt-4">
                             <Button
-                                onClick={() => handleStatusUpdate(application._id, 'accepted')}
+                                onClick={() => handleStatusUpdate(application._id, 'accepted', application.candidate?.username)}
                                 className="bg-green-600 hover:bg-green-700"
                                 disabled={application.status === 'accepted'}
                             >
@@ -269,7 +324,7 @@ const RecruiterApplications = () => {
                             </Button>
                             <Button
                                 variant="destructive"
-                                onClick={() => handleStatusUpdate(application._id, 'rejected')}
+                                onClick={() => handleStatusUpdate(application._id, 'rejected', application.candidate?.username)}
                                 disabled={application.status === 'rejected'}
                             >
                                 <XCircle className="h-4 w-4 mr-2" />
@@ -278,7 +333,7 @@ const RecruiterApplications = () => {
                             {application.status !== 'pending' && (
                                 <Button
                                     variant="outline"
-                                    onClick={() => handleStatusUpdate(application._id, 'pending')}
+                                    onClick={() => handleStatusUpdate(application._id, 'pending', application.candidate?.username)}
                                 >
                                     <Clock className="h-4 w-4 mr-2" />
                                     Reset to Pending
@@ -402,7 +457,7 @@ const RecruiterApplications = () => {
                             <div className="ml-auto flex gap-1">
                                 <Button
                                     size="sm"
-                                    onClick={() => handleStatusUpdate(application._id, 'accepted')}
+                                    onClick={() => handleStatusUpdate(application._id, 'accepted', application.candidate?.username)}
                                     className="bg-green-600 hover:bg-green-700"
                                     disabled={application.status === 'accepted'}
                                 >
@@ -411,7 +466,7 @@ const RecruiterApplications = () => {
                                 <Button
                                     size="sm"
                                     variant="destructive"
-                                    onClick={() => handleStatusUpdate(application._id, 'rejected')}
+                                    onClick={() => handleStatusUpdate(application._id, 'rejected', application.candidate?.username)}
                                     disabled={application.status === 'rejected'}
                                 >
                                     <XCircle className="h-4 w-4" />
@@ -552,6 +607,15 @@ const RecruiterApplications = () => {
                     </Card>
                 )}
             </motion.div>
+
+            {/* Application Status Dialog */}
+            <ApplicationStatusDialog
+                isOpen={statusDialog.isOpen}
+                onClose={handleStatusDialogClose}
+                onConfirm={handleStatusDialogConfirm}
+                status={statusDialog.status}
+                candidateName={statusDialog.candidateName}
+            />
         </div>
     );
 };

@@ -12,7 +12,7 @@ import { Textarea } from "../../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 
 import useFetch from "../../hooks/useFetch";
-import { addNewCompany, getMyCompany, updateCompany } from "../../api/recruiterApi";
+import { getMyCompany, createOrUpdateCompanyProfile } from "../../api/recruiterApi";
 import { useAuth } from "../../hooks/useAuth";
 import { BarLoader } from "react-spinners";
 
@@ -48,9 +48,8 @@ const CompanyProfile = () => {
     },
   });
 
-  const { execute: createCompany, loading: loadingCreate, error: errorCreate } = useFetch(addNewCompany);
   const { execute: fetchCompany, loading: loadingFetch, data: companyDetails } = useFetch(getMyCompany);
-  const { execute: updateCompanyDetails, loading: loadingUpdate, error: errorUpdate } = useFetch(updateCompany);
+  const { execute: createOrUpdateProfile, loading: loadingUpsert, error: errorUpsert } = useFetch(createOrUpdateCompanyProfile);
 
   useEffect(() => {
     if (user?.role === "recruiter") {
@@ -60,6 +59,7 @@ const CompanyProfile = () => {
 
   useEffect(() => {
     if (companyDetails) {
+      console.log("Loading company details:", companyDetails); // Debug log
       setValue("name", companyDetails.name || "");
       setValue("description", companyDetails.description || "");
       setValue("logo", companyDetails.logo || "");
@@ -69,10 +69,9 @@ const CompanyProfile = () => {
       setValue("website", companyDetails.website || "");
       setValue("industry", companyDetails.industry || "");
       setValue("size", companyDetails.size || "");
+      console.log("Set company size to:", companyDetails.size); // Debug log
     }
-  }, [companyDetails, setValue, user?.email]);
-
-  // When creating a company, prefill contact email from logged-in user
+  }, [companyDetails, setValue, user?.email]);  // When creating a company, prefill contact email from logged-in user
   useEffect(() => {
     if (!user?.companyId && user?.email) {
       setValue("contactEmail", user.email);
@@ -82,28 +81,24 @@ const CompanyProfile = () => {
   const onSubmit = async (data) => {
     const payload = { ...data };
 
-    if (user?.companyId) {
-      // Update existing company (PUT /company/me)
-      const res = await updateCompanyDetails(payload);
-      if (res.success) {
+    // Use the upsert functionality for both create and update
+    const res = await createOrUpdateProfile(payload);
+    if (res.success) {
+      if (user?.companyId) {
         toast.success("Company profile updated successfully!");
         setIsEditing(false);
       } else {
-        toast.error(res.error);
+        toast.success("Company created successfully!");
+        // Refresh company details to get the new company data
+        setTimeout(() => {
+          fetchCompany();
+          window.location.reload(); // Refresh to update user context
+        }, 1000);
       }
     } else {
-      // Create new company (ensure contactEmail)
-      const res = await createCompany({ ...payload, contactEmail: payload.contactEmail || user?.email });
-      if (res.success) {
-        toast.success("Company created successfully!");
-        // Optionally, update user's companyId in AuthContext if backend returns it
-      } else {
-        toast.error(res.error);
-      }
+      toast.error(res.message || res.error || "Something went wrong");
     }
-  };
-
-  if (loadingFetch) {
+  }; if (loadingFetch) {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <BarLoader color="#36d7b7" />
@@ -139,12 +134,15 @@ const CompanyProfile = () => {
         <div className="max-w-2xl mx-auto">
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 max-w-2xl mx-auto">
             <div>
-              <label htmlFor="name" className="block text-sm font-semibold text-foreground mb-1">Company Name</label>
+              <label htmlFor="name" className="block text-sm font-semibold text-foreground mb-1">
+                Company Name <span className="text-red-500">*</span>
+              </label>
               <Input
                 id="name"
-                placeholder="Company Name"
+                placeholder="Enter company name"
                 {...register("name")}
                 disabled={!isEditing && user?.companyId}
+                className={errors.name ? "border-red-500" : ""}
               />
               {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
             </div>
@@ -173,12 +171,16 @@ const CompanyProfile = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="contactEmail" className="block text-sm font-semibold text-foreground mb-1">Contact Email</label>
+                <label htmlFor="contactEmail" className="block text-sm font-semibold text-foreground mb-1">
+                  Contact Email <span className="text-red-500">*</span>
+                </label>
                 <Input
                   id="contactEmail"
                   placeholder="hr@company.com"
+                  type="email"
                   {...register("contactEmail")}
                   disabled={!isEditing && user?.companyId}
+                  className={errors.contactEmail ? "border-red-500" : ""}
                 />
                 {errors.contactEmail && <p className="text-red-500 text-sm mt-1">{errors.contactEmail.message}</p>}
               </div>
@@ -228,22 +230,23 @@ const CompanyProfile = () => {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-foreground mb-1">Company Size</label>
-                <input type="hidden" {...register("size")} />
                 <Select
-                  onValueChange={(v) => setValue("size", v)}
+                  onValueChange={(value) => {
+                    setValue("size", value, { shouldValidate: true });
+                  }}
                   value={watch("size") || ""}
                   disabled={!isEditing && user?.companyId}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select size" />
+                    <SelectValue placeholder="Select company size" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1-10">1-10</SelectItem>
-                    <SelectItem value="11-50">11-50</SelectItem>
-                    <SelectItem value="51-200">51-200</SelectItem>
-                    <SelectItem value="201-500">201-500</SelectItem>
-                    <SelectItem value="501-1000">501-1000</SelectItem>
-                    <SelectItem value=">1000">{">1000"}</SelectItem>
+                    <SelectItem value="1-10">1-10 employees</SelectItem>
+                    <SelectItem value="11-50">11-50 employees</SelectItem>
+                    <SelectItem value="51-200">51-200 employees</SelectItem>
+                    <SelectItem value="201-500">201-500 employees</SelectItem>
+                    <SelectItem value="501-1000">501-1000 employees</SelectItem>
+                    <SelectItem value=">1000">1000+ employees</SelectItem>
                   </SelectContent>
                 </Select>
                 {errors.size && <p className="text-red-500 text-sm mt-1">{errors.size.message}</p>}
@@ -258,8 +261,8 @@ const CompanyProfile = () => {
               )}
               {isEditing && (
                 <>
-                  <Button type="submit" disabled={loadingCreate || loadingUpdate} className="w-full sm:w-auto">
-                    {(loadingCreate || loadingUpdate) ? <BarLoader color="#fff" height={4} width={50} /> : "Save Profile"}
+                  <Button type="submit" disabled={loadingUpsert} className="w-full sm:w-auto">
+                    {loadingUpsert ? <BarLoader color="#fff" height={4} width={50} /> : "Save Profile"}
                   </Button>
                   <Button type="button" variant="outline" onClick={() => setIsEditing(false)} className="w-full sm:w-auto">
                     Cancel
@@ -267,14 +270,14 @@ const CompanyProfile = () => {
                 </>
               )}
               {!user?.companyId && (
-                <Button type="submit" disabled={loadingCreate} className="w-full sm:w-auto">
-                  {loadingCreate ? <BarLoader color="#fff" height={4} width={50} /> : "Create Company"}
+                <Button type="submit" disabled={loadingUpsert} className="w-full sm:w-auto">
+                  {loadingUpsert ? <BarLoader color="#fff" height={4} width={50} /> : "Create Company"}
                 </Button>
               )}
             </div>
 
-            {(errorCreate || errorUpdate) && (
-              <p className="text-red-500 text-center">Error: {errorCreate || errorUpdate}</p>
+            {errorUpsert && (
+              <p className="text-red-500 text-center">Error: {errorUpsert}</p>
             )}
           </form>
         </div>
