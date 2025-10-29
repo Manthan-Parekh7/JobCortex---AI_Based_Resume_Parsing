@@ -128,7 +128,7 @@ If you have the database backup included in the project:
 cd JobCortex
 
 # Restore the database
-mongorestore --db jobcortex ./db-backup/jobcortex
+mongorestore --db jobportal ./db-backup/jobportal
 ```
 
 #### Option 2: Fresh Database Setup
