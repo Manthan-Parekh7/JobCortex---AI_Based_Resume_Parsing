@@ -27,8 +27,22 @@ passport.use(
                         googleId: profile.id,
                         provider: "google",
                         isVerified: true, // <== Add this line
-                        role: "candidate", // assuming OAuth users are candidates by default
+                        role: null, // Role will be set during onboarding
                     });
+                } else {
+                    // Existing user found by email
+                    // If this is the first time linking Google, attach googleId and normalize provider
+                    const isFirstGoogleLink = !user.googleId;
+                    if (isFirstGoogleLink) {
+                        user.googleId = profile.id;
+                        user.provider = "google";
+                        // Force onboarding for fairness if user previously came from local auth
+                        // so they can choose their role again during first OAuth sign-in
+                        if (user.role) {
+                            user.role = null;
+                        }
+                        await user.save();
+                    }
                 }
 
                 return done(null, user); // 🔁 Return user object (no session)
@@ -74,8 +88,21 @@ passport.use(
                         githubId: profile.id,
                         provider: "github",
                         isVerified: true, // <== Add this line
-                        role: "candidate",
+                        role: null, // Role will be set during onboarding
                     });
+                } else {
+                    // Existing user found by email
+                    // If this is the first time linking GitHub, attach githubId and normalize provider
+                    const isFirstGithubLink = !user.githubId;
+                    if (isFirstGithubLink) {
+                        user.githubId = profile.id;
+                        user.provider = "github";
+                        // Force onboarding for fairness if user previously came from local auth
+                        if (user.role) {
+                            user.role = null;
+                        }
+                        await user.save();
+                    }
                 }
 
                 return done(null, user); // 🔁 Return user

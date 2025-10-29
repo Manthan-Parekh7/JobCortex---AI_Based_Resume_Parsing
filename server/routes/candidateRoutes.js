@@ -1,26 +1,30 @@
 import express from "express";
-import * as candidateController from "../controllers/candidateController.js";
+import { listJobs, getJobDetails, applyToJob, updateApplication, deleteApplication, myApplications, uploadOrReplaceResume, getResume, deleteResume, updateUserProfile, parseResumeFromCloudinary } from "../controllers/candidateController.js";
 import { isAuthenticated } from "../middlewares/authMiddleware.js";
-import { isVerified } from "../middlewares/isVerifiedMiddleware.js";
-import { uploadResume } from "../config/cloudinaryConfig.js"; // Cloudinary Multer middleware
+import { uploadResume, uploadProfileImage } from "../config/cloudinaryConfig.js";
 
 const router = express.Router();
 
-// --- Public endpoints ---
-router.get("/jobs", candidateController.listJobs);
-router.get("/jobs/:jobId", candidateController.getJobDetails);
+// Public routes
+router.get("/jobs", listJobs);
+router.get("/jobs/:jobId", getJobDetails);
 
-// --- Resume management (Candidate only) ---
-router.post("/me/resume", isAuthenticated, isVerified, uploadResume.single("resume"), candidateController.uploadOrReplaceResume);
-router.get("/me/resume", isAuthenticated, isVerified, candidateController.getResume);
-router.delete("/me/resume", isAuthenticated, isVerified, candidateController.deleteResume);
+// Protected routes (Candidate)
+router.use(isAuthenticated); // All routes below this are protected
 
-// --- New AI Resume parsing endpoint ---
-router.post("/me/parse-resume-cloudinary", isAuthenticated, isVerified, candidateController.parseResumeFromCloudinary);
+router.post("/jobs/:jobId/apply", uploadResume.single("resume"), applyToJob); // This is the route for applyToJob
+router.put("/applications/:appId", uploadResume.single("resume"), updateApplication);
+router.delete("/applications/:appId", deleteApplication);
+router.get("/applications/me", myApplications);
 
-// --- Job applications (Candidate only) ---
-router.post("/jobs/:jobId/apply", isAuthenticated, isVerified, candidateController.applyToJob);
-router.get("/me/applications", isAuthenticated, isVerified, candidateController.myApplications);
-router.patch("/applications/:appId/withdraw", isAuthenticated, isVerified, candidateController.withdrawApplication);
+// Resume management
+router.post("/me/resume", uploadResume.single("resume"), uploadOrReplaceResume); // This route uses multer
+router.get("/me/resume", getResume);
+router.delete("/me/resume", deleteResume);
+
+// Profile management
+router.put("/me/profile", uploadProfileImage.single("profileImage"), updateUserProfile); // This route uses multer
+
+router.post("/me/parse-resume-cloudinary", parseResumeFromCloudinary);
 
 export default router;

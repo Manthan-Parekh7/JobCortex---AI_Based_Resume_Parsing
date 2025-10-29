@@ -11,6 +11,7 @@ router.post("/", isAuthenticated, isRecruiter, isVerified, jobController.createJ
 router.get("/my", isAuthenticated, isRecruiter, isVerified, jobController.getMyJobs);
 router.get("/:jobId", isAuthenticated, isRecruiter, isVerified, jobController.getJobById);
 router.put("/:jobId", isAuthenticated, isRecruiter, isVerified, jobController.updateJob);
+router.put("/:jobId/status", isAuthenticated, isRecruiter, isVerified, jobController.updateJobStatus);
 router.delete("/:jobId", isAuthenticated, isRecruiter, isVerified, jobController.deleteJob);
 
 export default router;

@@ -9,16 +9,30 @@ cloudinary.config({
     api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const storage = new CloudinaryStorage({
+// Storage for Resumes
+const resumeStorage = new CloudinaryStorage({
     cloudinary,
     params: {
         folder: "jobportal_resumes",
         resource_type: "raw",
         allowed_formats: ["pdf", "doc", "docx", "txt"],
-        public_id: (req, file) => `${Date.now()}-${file.originalname}`,
+        public_id: (req, file) => `resume-${req.user.id}-${Date.now()}`,
     },
 });
 
-const uploadResume = multer({ storage });
+const uploadResume = multer({ storage: resumeStorage });
 
-export { cloudinary, uploadResume };
+// Storage for Profile Images
+const profileImageStorage = new CloudinaryStorage({
+    cloudinary,
+    params: {
+        folder: "jobportal_profile_images",
+        resource_type: "image",
+        allowed_formats: ["jpg", "jpeg", "png", "webp"],
+        public_id: (req, file) => `profile-${req.user.id}-${Date.now()}`,
+    },
+});
+
+const uploadProfileImage = multer({ storage: profileImageStorage });
+
+export { cloudinary, uploadResume, uploadProfileImage };

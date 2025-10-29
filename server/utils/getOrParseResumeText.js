@@ -14,9 +14,9 @@ export async function getOrParseResumeText(userId) {
 
     // 3. Extract text based on file type
     let text;
-    if (user.resume.endsWith(".pdf")) {
+    if (fileBuffer[0] === 0x25 && fileBuffer[1] === 0x50 && fileBuffer[2] === 0x44 && fileBuffer[3] === 0x46) { // PDF magic number (%PDF)
         text = await extractTextFromPDF(fileBuffer);
-    } else if (user.resume.endsWith(".docx")) {
+    } else if (fileBuffer[0] === 0x50 && fileBuffer[1] === 0x4B) { // DOCX magic number (PK)
         text = await extractTextFromDocx(fileBuffer);
     } else {
         throw new Error("Unsupported file type");

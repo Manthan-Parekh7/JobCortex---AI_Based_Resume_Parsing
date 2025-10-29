@@ -9,13 +9,13 @@ export const createCompany = async (req, res) => {
 
         if (req.user.role !== "recruiter") {
             logger.warn(`User ${req.user.email} with role ${req.user.role} attempted to create company - forbidden`);
-            return res.status(403).json({ error: "Only recruiters can create companies" });
+            return res.status(403).json({ success: false, message: "Only recruiters can create companies" });
         }
 
         // Prevent multiple companies per recruiter (optional rule)
         if (req.user.companyId) {
             logger.warn(`Recruiter ${req.user.email} already belongs to a company (ID: ${req.user.companyId})`);
-            return res.status(400).json({ error: "Recruiter already belongs to a company" });
+            return res.status(400).json({ success: false, message: "Recruiter already belongs to a company" });
         }
 
         const company = await Company.create({
@@ -37,10 +37,10 @@ export const createCompany = async (req, res) => {
         await req.user.save();
 
         logger.info(`Company created (ID: ${company._id}) by recruiter ${req.user.email}`);
-        return res.status(201).json({ message: "Company created", company });
+        return res.status(201).json({ success: true, message: "Company created", company });
     } catch (err) {
         logger.error("Create company error:", err);
-        return res.status(500).json({ error: "Failed to create company" });
+        return res.status(500).json({ success: false, message: "Failed to create company" });
     }
 };
 
@@ -50,13 +50,13 @@ export const getMyCompany = async (req, res) => {
         const company = await Company.findById(req.user.companyId).populate("owners", "username email role");
         if (!company) {
             logger.warn(`No company found for user ${req.user.email}`);
-            return res.status(404).json({ error: "No company found for this user" });
+            return res.status(404).json({ success: false, message: "No company found for this user" });
         }
         logger.info(`Company profile fetched for user ${req.user.email} (Company ID: ${req.user.companyId})`);
-        return res.json(company);
+        return res.json({ success: true, message: "Company profile fetched", company });
     } catch (err) {
         logger.error("Failed to fetch company:", err);
-        return res.status(500).json({ error: "Failed to fetch company" });
+        return res.status(500).json({ success: false, message: "Failed to fetch company" });
     }
 };
 
@@ -66,22 +66,22 @@ export const updateCompany = async (req, res) => {
         const company = await Company.findById(req.user.companyId);
         if (!company) {
             logger.warn(`Company not found for user ${req.user.email} (Company ID: ${req.user.companyId})`);
-            return res.status(404).json({ error: "Company not found" });
+            return res.status(404).json({ success: false, message: "Company not found" });
         }
 
         // Check if the user is an owner
         if (!company.owners.includes(req.user._id)) {
             logger.warn(`User ${req.user.email} attempted to update company ${company._id} without ownership`);
-            return res.status(403).json({ error: "Not authorized to update this company" });
+            return res.status(403).json({ success: false, message: "Not authorized to update this company" });
         }
 
         Object.assign(company, req.body);
         await company.save();
 
         logger.info(`Company ${company._id} updated by user ${req.user.email}`);
-        return res.json({ message: "Company updated", company });
+        return res.json({ success: true, message: "Company updated", company });
     } catch (err) {
         logger.error("Failed to update company:", err);
-        return res.status(500).json({ error: "Failed to update company" });
+        return res.status(500).json({ success: false, message: "Failed to update company" });
     }
 };

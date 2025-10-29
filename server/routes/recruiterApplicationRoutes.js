@@ -6,6 +6,9 @@ import { isVerified } from "../middlewares/isVerifiedMiddleware.js";
 
 const router = express.Router();
 
+// Get application statistics (must be before /:jobId route)
+router.get("/stats", isAuthenticated, isVerified, isRecruiter, recruiterAppController.getApplicationStats);
+
 router.get("/:jobId", isAuthenticated, isVerified, isRecruiter, recruiterAppController.getApplicationsForJob);
 router.patch("/:appId/:status", isAuthenticated, isVerified, isRecruiter, recruiterAppController.updateApplicationStatus);
 

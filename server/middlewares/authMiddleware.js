@@ -7,21 +7,21 @@ import logger from "../config/logger.js";
 export const isAuthenticated = async (req, res, next) => {
     const accessToken = req.cookies?.access_token;
     const refreshToken = req.cookies?.refresh_token;
-    const isProd = process.env.NODE_ENV === "production";
+    // const isProd = process.env.NODE_ENV === "production"; // Removed as secure and sameSite are hardcoded for cross-origin dev
 
-    // Helper to set auth cookies
+    // Helper to set auth cookies (consistent with authController)
     const setAuthCookies = (access, refresh) => {
         res.cookie("access_token", access, {
             httpOnly: true,
-            secure: isProd,
-            sameSite: isProd ? "None" : "Lax",
+            secure: true, // Always secure for SameSite: None
+            sameSite: "None",
             maxAge: 15 * 60 * 1000, // 15 minutes
             path: "/",
         });
         res.cookie("refresh_token", refresh, {
             httpOnly: true,
-            secure: isProd,
-            sameSite: isProd ? "None" : "Lax",
+            secure: true, // Always secure for SameSite: None
+            sameSite: "None",
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
             path: "/",
         });
@@ -38,6 +38,7 @@ export const isAuthenticated = async (req, res, next) => {
                 return next(); // Access token valid, proceed
             }
             logger.warn("User not found for valid access token");
+            // Fall through to refresh token flow if user not found for valid token
         }
     } catch (err) {
         if (err.name === "TokenExpiredError") {
@@ -45,13 +46,13 @@ export const isAuthenticated = async (req, res, next) => {
             // continue to refresh token flow
         } else {
             logger.warn(`Invalid access token: ${err.message}`);
-            return res.status(401).json({ error: "Unauthorized: Invalid token" });
+            return res.status(401).json({ success: false, message: "Unauthorized: Invalid access token" });
         }
     }
 
     if (!refreshToken) {
         logger.warn("No refresh token found in the request");
-        return res.status(401).json({ error: "Unauthorized: No refresh token" });
+        return res.status(401).json({ success: false, message: "Unauthorized: No refresh token" });
     }
 
     try {
@@ -60,7 +61,7 @@ export const isAuthenticated = async (req, res, next) => {
         const user = await User.findById(decodedRefresh.id);
         if (!user || user.refreshToken !== refreshToken) {
             logger.warn(`Invalid session or refresh token mismatch for user ID ${decodedRefresh.id}`);
-            return res.status(401).json({ error: "Unauthorized: Invalid refresh token" });
+            return res.status(401).json({ success: false, message: "Unauthorized: Invalid refresh token" });
         }
 
         // Generate new access and refresh tokens
@@ -80,6 +81,6 @@ export const isAuthenticated = async (req, res, next) => {
         return next();
     } catch (err) {
         logger.error(`Refresh token verification failed: ${err.message}`);
-        return res.status(401).json({ error: "Unauthorized: Refresh failed" });
+        return res.status(401).json({ success: false, message: "Unauthorized: Refresh failed" });
     }
 };

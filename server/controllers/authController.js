@@ -19,16 +19,16 @@ const setAuthCookies = (res, accessToken, refreshToken) => {
 
     res.cookie("access_token", accessToken, {
         httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "None" : "Lax",
+        secure: true, // Always secure for SameSite: None
+        sameSite: "None",
         maxAge: 15 * 60 * 1000,
         path: "/",
     });
 
     res.cookie("refresh_token", refreshToken, {
         httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "None" : "Lax",
+        secure: true, // Always secure for SameSite: None
+        sameSite: "None",
         maxAge: 7 * 24 * 60 * 60 * 1000,
         path: "/",
     });
@@ -39,8 +39,8 @@ const clearAuthCookies = (res) => {
     const isProd = process.env.NODE_ENV === "production";
     const opts = {
         httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? "None" : "Lax",
+        secure: true, // Always secure for SameSite: None
+        sameSite: "None",
         path: "/",
     };
     res.clearCookie("access_token", opts);
@@ -61,12 +61,19 @@ export const googleAuth = (req, res, next) => next();
 // Google OAuth callback
 export const googleCallback = async (req, res) => {
     try {
+        logger.info(`Google OAuth callback user: ${JSON.stringify(req.user)}`);
         if (!req.user.isVerified) {
             req.user.isVerified = true;
             logger.info(`User ${req.user.email} verified via Google OAuth`);
         }
         await issueTokensAndSetCookies(req.user, res);
-        return res.redirect((process.env.CLIENT_URL || "http://localhost:5000") + "/loggedIn");
+
+        // Check if user has a role, if not redirect to onboarding
+        const redirectPath = req.user.role ? "" : "/onboarding";
+
+        // Send user data to CLIENT_URL as query param (URL-safe)
+        const userObj = encodeURIComponent(JSON.stringify({ user: req.user }));
+        return res.redirect(`${process.env.CLIENT_URL}${redirectPath}?user=${userObj}`);
     } catch (err) {
         logger.error(`Google callback error: ${err.message}`, { stack: err.stack });
         return res.redirect("/login?error=oauth");
@@ -79,38 +86,39 @@ export const githubAuth = (req, res, next) => next();
 // GitHub OAuth callback
 export const githubCallback = async (req, res) => {
     try {
+        logger.info(`GitHub OAuth callback user: ${JSON.stringify(req.user)}`);
         if (!req.user.isVerified) {
             req.user.isVerified = true;
             logger.info(`User ${req.user.email} verified via GitHub OAuth`);
         }
         await issueTokensAndSetCookies(req.user, res);
-        return res.redirect((process.env.CLIENT_URL || "http://localhost:5000") + "/loggedIn");
+
+        // Check if user has a role, if not redirect to onboarding
+        const redirectPath = req.user.role ? "" : "/onboarding";
+
+        // Send user data to CLIENT_URL as query param (URL-safe)
+        const userObj = encodeURIComponent(JSON.stringify({ user: req.user }));
+        return res.redirect(`${process.env.CLIENT_URL}${redirectPath}?user=${userObj}`);
     } catch (err) {
         logger.error(`GitHub callback error: ${err.message}`, { stack: err.stack });
         return res.redirect("/login?error=oauth");
     }
 };
 
-// Local signup (recruiter or candidate via form) with OTP
+// Local signup (without role requirement - role selected in onboarding)
 export const signup = async (req, res) => {
-    const { email, password, username, role, companyName } = req.body;
+    const { email, password, username } = req.body;
     try {
-        if (role === "recruiter" && !companyName) {
-            logger.warn(`Signup failed for recruiter ${email} due to missing company name`);
-            return res.status(400).json({ error: "Company name required for recruiter signup." });
-        }
-
         const existingUser = await User.findOne({ email });
         if (existingUser) {
             logger.warn(`Signup attempt with already registered email: ${email}`);
-            return res.status(400).json({ error: "Email already registered" });
+            return res.status(400).json({ success: false, message: "Email already registered" });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Using fixed OTP for testing; replace with random OTP in production
+        // Using random OTP for verification
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        //
         const otpExpires = new Date(Date.now() + 15 * 60 * 1000);
 
         logger.info(`Generated OTP for ${email}: ${otp}`);
@@ -120,8 +128,7 @@ export const signup = async (req, res) => {
             username,
             password: hashedPassword,
             provider: "local",
-            role: role || "candidate",
-            companyName: role === "recruiter" ? companyName : undefined,
+            role: null, // Role will be set during onboarding
             otp,
             otpExpires,
             isVerified: false,
@@ -131,10 +138,10 @@ export const signup = async (req, res) => {
         await sendEmail(email, "Verify your email for JobCortex", message);
 
         logger.info(`User signed up with email ${email}, OTP sent`);
-        return res.status(201).json({ message: "User created. Check your email for OTP to verify your account." });
+        return res.status(201).json({ success: true, message: "User created. Check your email for OTP to verify your account." });
     } catch (err) {
         logger.error(`Signup error for email ${email}: ${err.message}`, { stack: err.stack });
-        return res.status(500).json({ error: "Signup failed", details: err.message });
+        return res.status(500).json({ success: false, message: "Signup failed", details: err.message });
     }
 };
 
@@ -145,19 +152,19 @@ export const verifyOtp = async (req, res) => {
         const user = await User.findOne({ email });
         if (!user) {
             logger.warn(`OTP verification failed: user not found for email ${email}`);
-            return res.status(400).json({ error: "User not found" });
+            return res.status(400).json({ success: false, message: "User not found" });
         }
         if (user.isVerified) {
             logger.warn(`OTP verification attempt on already verified user ${email}`);
-            return res.status(400).json({ error: "User already verified" });
+            return res.status(400).json({ success: false, message: "User already verified" });
         }
         if (user.otp !== otp) {
             logger.warn(`Invalid OTP entered for user ${email}`);
-            return res.status(400).json({ error: "Invalid OTP" });
+            return res.status(400).json({ success: false, message: "Invalid OTP" });
         }
         if (user.otpExpires < new Date()) {
             logger.warn(`Expired OTP used for user ${email}`);
-            return res.status(400).json({ error: "OTP expired" });
+            return res.status(400).json({ success: false, message: "OTP expired" });
         }
 
         user.isVerified = true;
@@ -166,10 +173,10 @@ export const verifyOtp = async (req, res) => {
 
         await issueTokensAndSetCookies(user, res);
         logger.info(`User ${email} verified successfully via OTP`);
-        return res.json({ message: "Email verified successfully", user });
+        return res.json({ success: true, message: "Email verified successfully", user });
     } catch (err) {
         logger.error(`OTP verification error for email ${email}: ${err.message}`, { stack: err.stack });
-        return res.status(500).json({ error: "Verification failed", details: err.message });
+        return res.status(500).json({ success: false, message: "Verification failed", details: err.message });
     }
 };
 
@@ -180,11 +187,11 @@ export const resendOtp = async (req, res) => {
         const user = await User.findOne({ email });
         if (!user) {
             logger.warn(`Resend OTP failed: user not found for email ${email}`);
-            return res.status(400).json({ error: "User not found" });
+            return res.status(400).json({ success: false, message: "User not found" });
         }
         if (user.isVerified) {
             logger.warn(`Resend OTP called for already verified user ${email}`);
-            return res.status(400).json({ error: "User already verified" });
+            return res.status(400).json({ success: false, message: "User already verified" });
         }
 
         const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -198,10 +205,10 @@ export const resendOtp = async (req, res) => {
         await sendEmail(email, "Resend: Verify your email for JobCortex", message);
 
         logger.info(`OTP resent to user ${email}`);
-        return res.json({ message: "OTP resent, check your email" });
+        return res.json({ success: true, message: "OTP resent, check your email" });
     } catch (err) {
         logger.error(`Resend OTP error for email ${email}: ${err.message}`, { stack: err.stack });
-        return res.status(500).json({ error: "Resend OTP failed", details: err.message });
+        return res.status(500).json({ success: false, message: "Resend OTP failed", details: err.message });
     }
 };
 
@@ -212,26 +219,26 @@ export const login = async (req, res) => {
         const user = await User.findOne({ email });
         if (!user || user.provider !== "local") {
             logger.warn(`Login failed for email ${email}: invalid credentials`);
-            return res.status(400).json({ error: "Invalid credentials" });
+            return res.status(400).json({ success: false, message: "Invalid credentials" });
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             logger.warn(`Login failed for email ${email}: incorrect password`);
-            return res.status(400).json({ error: "Invalid credentials" });
+            return res.status(400).json({ success: false, message: "Invalid credentials" });
         }
 
         if (!user.isVerified) {
             logger.warn(`Login attempt for unverified user ${email}`);
-            return res.status(403).json({ error: "Please verify your email" });
+            return res.status(403).json({ success: false, message: "Please verify your email" });
         }
 
         await issueTokensAndSetCookies(user, res);
         logger.info(`User logged in successfully: ${email}`);
-        return res.status(200).json({ message: "Login successful", user });
+        return res.status(200).json({ success: true, message: "Login successful", user });
     } catch (err) {
         logger.error(`Login error for email ${email}: ${err.message}`, { stack: err.stack });
-        return res.status(500).json({ error: "Login failed", details: err.message });
+        return res.status(500).json({ success: false, message: "Login failed", details: err.message });
     }
 };
 
@@ -241,7 +248,7 @@ export const refreshToken = async (req, res) => {
         const incoming = req.cookies?.refresh_token;
         if (!incoming) {
             logger.warn("Refresh token missing from request");
-            return res.status(401).json({ error: "No refresh token" });
+            return res.status(401).json({ success: false, message: "No refresh token" });
         }
 
         const clear = () => clearAuthCookies(res);
@@ -253,7 +260,8 @@ export const refreshToken = async (req, res) => {
             clear();
             logger.warn(`Refresh token verification failed: ${err.name === "TokenExpiredError" ? "expired" : "invalid"}`);
             return res.status(401).json({
-                error: err?.name === "TokenExpiredError" ? "Refresh token expired" : "Invalid refresh token",
+                success: false,
+                message: err?.name === "TokenExpiredError" ? "Refresh token expired" : "Invalid refresh token",
             });
         }
 
@@ -261,7 +269,7 @@ export const refreshToken = async (req, res) => {
         if (!user || !user.refreshToken) {
             clear();
             logger.warn("Invalid session or no refresh token found");
-            return res.status(401).json({ error: "Invalid session" });
+            return res.status(401).json({ success: false, message: "Invalid session" });
         }
 
         if (user.refreshToken !== incoming) {
@@ -269,15 +277,31 @@ export const refreshToken = async (req, res) => {
             await user.save();
             clear();
             logger.warn(`Refresh token mismatch for user ${user.email}`);
-            return res.status(401).json({ error: "Refresh token mismatch" });
+            return res.status(401).json({ success: false, message: "Refresh token mismatch" });
         }
 
         await issueTokensAndSetCookies(user, res);
         logger.info(`Refresh token rotated and tokens issued for user ${user.email}`);
-        return res.json({ message: "Token refreshed" });
+        return res.json({ success: true, message: "Token refreshed" });
     } catch (err) {
         logger.error(`Refresh token error: ${err.message}`, { stack: err.stack });
-        return res.status(500).json({ error: "Refresh failed", details: err.message });
+        return res.status(500).json({ success: false, message: "Refresh failed", details: err.message });
+    }
+};
+
+// Get authenticated user
+export const getMe = async (req, res) => {
+    try {
+        // req.user is populated by the protect middleware
+        if (!req.user) {
+            logger.warn("getMe: req.user is not populated, likely no valid token");
+            return res.status(401).json({ success: false, message: "Not authenticated" });
+        }
+        logger.info(`getMe: User ${req.user.email} fetched successfully`);
+        return res.status(200).json({ success: true, user: req.user });
+    } catch (err) {
+        logger.error(`getMe error: ${err.message}`, { stack: err.stack });
+        return res.status(500).json({ success: false, message: "Failed to fetch user data" });
     }
 };
 
@@ -305,9 +329,41 @@ export const logout = async (req, res) => {
         }
 
         logger.info(`User logged out`);
-        return res.json({ message: "Logged out" });
+        return res.json({ success: true, message: "Logged out" });
     } catch (err) {
         logger.error(`Logout error: ${err.message}`, { stack: err.stack });
-        return res.status(500).json({ error: "Logout failed", details: err.message });
+        return res.status(500).json({ success: false, message: "Logout failed", details: err.message });
+    }
+};
+
+// Update user role (for onboarding)
+export const updateRole = async (req, res) => {
+    try {
+        const { role } = req.body;
+        const userId = req.user?.id;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: "User not authenticated" });
+        }
+
+        if (!role || !["candidate", "recruiter"].includes(role)) {
+            return res.status(400).json({ success: false, message: "Valid role required (candidate or recruiter)" });
+        }
+
+        const user = await User.findByIdAndUpdate(userId, { role }, { new: true }).select("-password -otp -otpExpires");
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        logger.info(`User ${user.email} updated role to ${role}`);
+        return res.json({
+            success: true,
+            message: `Role updated to ${role}`,
+            user,
+        });
+    } catch (err) {
+        logger.error(`Update role error: ${err.message}`, { stack: err.stack });
+        return res.status(500).json({ success: false, message: "Failed to update role", details: err.message });
     }
 };

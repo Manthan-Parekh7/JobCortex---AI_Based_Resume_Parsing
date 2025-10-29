@@ -3,6 +3,7 @@
 import express from "express";
 import passport from "passport";
 import * as authController from "../controllers/authController.js";
+import { isAuthenticated } from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
@@ -33,6 +34,12 @@ router.post("/signup", authController.signup);
 router.post("/verify-otp", authController.verifyOtp);
 router.post("/resend-otp", authController.resendOtp);
 router.post("/login", authController.login);
+
+// Get authenticated user
+router.get("/me", isAuthenticated, authController.getMe);
+
+// Update user role (for onboarding)
+router.patch("/update-role", isAuthenticated, authController.updateRole);
 
 // Token refresh & logout
 router.post("/refresh_token", authController.refreshToken);

@@ -1,0 +1,47 @@
+[
+  {
+    "name": "amazon",
+    "path": "/assets/amazon.svg",
+    "id": 1
+  },
+  {
+    "name": "atlassian",
+    "path": "/assets/atlassian.svg",
+    "id": 2
+  },
+  {
+    "name": "google",
+    "path": "/assets/google.svg",
+    "id": 3
+  },
+  {
+    "name": "ibm",
+    "path": "/assets/ibm.svg",
+    "id": 4
+  },
+  {
+    "name": "meta",
+    "path": "/assets/meta.svg",
+    "id": 5
+  },
+  {
+    "name": "microsoft",
+    "path": "/assets/microsoft.svg",
+    "id": 6
+  },
+  {
+    "name": "netflix",
+    "path": "/assets/netflix.svg",
+    "id": 7
+  },
+  {
+    "name": "walmart",
+    "path": "/assets/walmart.svg",
+    "id": 8
+  },
+  {
+    "name": "accenture",
+    "path": "/assets/accenture.svg",
+    "id": 9
+  }
+]

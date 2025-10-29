@@ -10,6 +10,9 @@ import companyRoutes from "./routes/companyRoutes.js";
 import jobRoutes from "./routes/jobRoutes.js";
 import candidateRoutes from "./routes/candidateRoutes.js";
 import recruiterApplicationRoutes from "./routes/recruiterApplicationRoutes.js";
+import recruiterProfileRoutes from "./routes/recruiterProfileRoutes.js";
+import recruiterCandidateRoutes from "./routes/recruiterCandidateRoutes.js";
+import logger from "./config/logger.js";
 
 dotenv.config();
 
@@ -40,26 +43,14 @@ app.use(passport.initialize());
 app.use("/auth", authRoutes);
 app.use("/company", companyRoutes);
 app.use("/jobs", jobRoutes);
-app.use("/public", candidateRoutes);
+app.use("/candidate", candidateRoutes);
 app.use("/recruiter/applications", recruiterApplicationRoutes);
+app.use("/recruiter", recruiterProfileRoutes);
+app.use("/recruiter/candidates", recruiterCandidateRoutes);
 
-app.get("/loggedIn", isAuthenticated, (req, res) => {
-    res.send(`
-      <html>
-          <body>
-              <h2>Welcome, ${req.user.username}</h2>
-              <img src="${req.user.image}" alt="User Image" style="max-width:200px;"/>
-          </body>
-      </html>
-  `);
-});
-
-app.get("/", (req, res) => {
-    res.send("Welcome to the Job Portal API");
-});
-
-app.get("/loggedOut", (req, res) => {
-    res.send("You have been logged out");
+app.get("/health", (req, res) => {
+    logger.info("Health check OK");
+    res.status(200).json({ status: "OK" });
 });
 
 // 404 handler
