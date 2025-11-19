@@ -3,7 +3,7 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { MarkdownEditor } from "../../components/ui/markdown-editor";
-import { State } from "country-state-city";
+import { popularCities } from "../../data/cities";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
@@ -61,7 +61,7 @@ const PostJob = () => {
   const [openCompanyDrawer, setOpenCompanyDrawer] = useState(false);
 
   const jobTypes = ["Full-time", "Part-time", "Contract", "Internship"];
-  const indianStates = State.getStatesOfCountry("IN");
+
 
 
 
@@ -246,9 +246,9 @@ const PostJob = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectGroup>
-                                  {indianStates.map((state) => (
-                                    <SelectItem key={state.isoCode} value={state.name}>
-                                      {state.name}
+                                  {popularCities.map((city) => (
+                                    <SelectItem key={city} value={city}>
+                                      {city}
                                     </SelectItem>
                                   ))}
                                 </SelectGroup>
